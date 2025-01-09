@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.colors import ListedColormap
 import time
-# Set device
+
+# Set device CPU or GPU
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Dataset Class for Point Cloud Data (PCD)
@@ -112,8 +113,8 @@ for idx, file_name in zip(all_test_indices, all_test_file_names):
     test_results.append([original_data[0], original_data[1], original_data[2], predicted_label, file_name])
 
 test_results_df = pd.DataFrame(test_results, columns=['X', 'Y', 'Z', 'Predicted_Label', 'File_Name'])
-# test_results_df.to_csv('test_results_pcd.csv', index=False)
-# print('Test results saved to test_results_pcd.csv')
+test_results_df.to_csv('results/test_results_pcd.csv', index=False)
+print('Test results saved to test_results_pcd.csv')
 
 # Custom colormap
 cmap = ListedColormap(['blue', 'red', 'green'])
