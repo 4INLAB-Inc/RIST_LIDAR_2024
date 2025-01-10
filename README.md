@@ -38,7 +38,7 @@
 - **`Oversampling 활성화`**: PointNetDataset 초기화 시 oversample=True로 설정.
 - **`배치 크기 및 에포크 조정`**: 스크립트에서 batch_size 및 num_epochs 값을 수정 필요요.
 
-# 코트 구성
+# 코트 프로젝트 구성
   - 프로젝트의 디렉토리 구조와 각 구성 요소를 다음과 같이 설명함:
     ```bash
     RIST_LIDAR_2024/
