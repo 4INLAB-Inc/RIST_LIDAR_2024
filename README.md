@@ -76,6 +76,8 @@
    ```bash
    pip install -r requirements.txt
    ```
+
+
 ## 기본 사용법
 1. 모델 학습:
    - 학습 데이터를 **(/dataset/train/)** 디렉토리에 저장함.
@@ -85,6 +87,34 @@
     ```
    - **모델 디렉토리 (/model/)**: 학습이 완료된 모델 파일 (.pth)을 저장하는 디렉토리입니다. 이 디렉토리에 저장된 모델은 테스트 또는 배포 시 사용됨됨.
    - 학습 결과는 **(results/)** 디렉토리에 저장됨됨.
+
+   ### 학습의 설정 파라미터
+      스크립트는 명령줄을 통해 다음과 같은 인자를 받을 수 있습니다:
+
+        ```bash
+        parser = argparse.ArgumentParser(description="Train a PointNet model on LIDAR data.")
+        parser.add_argument('--csv_directory', type=str, default='dataset/train', help="Directory containing CSV files.")
+        parser.add_argument('--batch_size', type=int, default=256, help="Batch size for training.")
+        parser.add_argument('--val_batch_size', type=int, default=64, help="Batch size for validation.")
+        parser.add_argument('--test_batch_size', type=int, default=64, help="Batch size for testing.")
+        parser.add_argument('--num_epochs', type=int, default=100, help="Number of epochs for training.")
+        parser.add_argument('--learning_rate', type=float, default=0.0001, help="Learning rate for optimizer.")
+        parser.add_argument('--oversample',default=True, help="Enable oversampling for class balancing.")
+        parser.add_argument('--output_model', type=str, default='model/lidar_pointnet_model.pth', help="Output path for the trained model.")
+        parser.add_argument('--output_plots', type=str, default='results', help="Directory to save training/validation plots.")
+        ```
+
+      | 파라미터                  | 기본값                                    | 설명                                                                         |
+      |---------------------------|------------------------------------------|-----------------------------------------------------------------------------|
+      | `--csv_directory`         | `dataset/train`                         | 훈련, 검증 및 테스트용 CSV 파일이 포함된 디렉토리 경로입니다.                    |
+      | `--batch_size`            | `256`                                   | 훈련 시 배치 크기입니다.                                                     |
+      | `--val_batch_size`        | `64`                                    | 검증 시 배치 크기입니다.                                                     |
+      | `--test_batch_size`       | `64`                                    | 테스트 시 배치 크기입니다.                                                   |
+      | `--num_epochs`            | `100`                                   | 훈련 시 총 에포크 수입니다.                                                  |
+      | `--learning_rate`         | `0.0001`                                | 옵티마이저의 학습률입니다.                                                   |
+      | `--oversample`            | `True`                                  | 클래스 균형을 맞추기 위해 오버샘플링을 적용할지 여부를 설정합니다.                |
+      | `--output_model`          | `model/lidar_pointnet_model.pth`        | 훈련된 모델이 저장될 경로입니다.                                             |
+      | `--output_plots`          | `results`                               | 손실 및 정확도 그래프와 같은 출력 파일이 저장될 디렉토리입니다.                  |
 
 3. 모델 테스트:
    - 테스트할 예시 PCD 파일을 **(dataset/test/)** 디렉토리에 저장함함.

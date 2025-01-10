@@ -1,4 +1,5 @@
 #%%
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -10,11 +11,32 @@ from sklearn.utils import resample
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-
 from tqdm import tqdm
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+# Argument Parser for Configurations
+# Setting Inital Parameters for Training
+parser = argparse.ArgumentParser(description="Train a PointNet model on LIDAR data.")
+parser.add_argument('--csv_directory', type=str, default='dataset/train', help="Directory containing CSV files.")
+parser.add_argument('--batch_size', type=int, default=256, help="Batch size for training.")
+parser.add_argument('--val_batch_size', type=int, default=64, help="Batch size for validation.")
+parser.add_argument('--test_batch_size', type=int, default=64, help="Batch size for testing.")
+parser.add_argument('--num_epochs', type=int, default=700, help="Number of epochs for training.")
+parser.add_argument('--learning_rate', type=float, default=0.0001, help="Learning rate for optimizer.")
+parser.add_argument('--oversample',default=True, help="Enable oversampling for class balancing.")
+parser.add_argument('--output_model', type=str, default='model/lidar_pointnet_model.pth', help="Output path for the trained model.")
+parser.add_argument('--output_plots', type=str, default='results', help="Directory to save training/validation plots.")
+args = parser.parse_args()
+
+# Directory containing CSV files with point cloud data
+csv_files = [os.path.join(args.csv_directory, f) for f in os.listdir(args.csv_directory) if f.endswith('.csv')]
+
+# Split the dataset into training+validation and testing (80% train+validation, 20% test)
+train_val_files, test_files = train_test_split(csv_files, test_size=0.2, random_state=42)  
+
+# Split the training+validation set into training and validation (90% train, 10% validation)
+train_files, val_files = train_test_split(train_val_files, test_size=0.1, random_state=42) 
 
 class PointNetDataset(torch.utils.data.Dataset):
     def __init__(self, csv_files, oversample=False):
@@ -69,17 +91,7 @@ class PointNetDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx], idx
 
-# Directory containing CSV files with point cloud data
-csv_directory = "dataset/train"
-csv_files = [os.path.join(csv_directory, f) for f in os.listdir(csv_directory) if f.endswith('.csv')]
-
-# Split the dataset into training+validation and testing (90% train+validation, 10% test)
-train_val_files, test_files = train_test_split(csv_files, test_size=0.1, random_state=42) 
-
-# Split the training+validation set into training and validation (90% train, 10% validation)
-train_files, val_files = train_test_split(train_val_files, test_size=0.1, random_state=42)
-
-train_dataset = PointNetDataset(train_files, oversample=True)   # Improving performance with oversample=True
+train_dataset = PointNetDataset(train_files, oversample=args.oversample)
 val_dataset = PointNetDataset(val_files, oversample=False)
 test_dataset = PointNetDataset(test_files, oversample=False)
 
@@ -96,12 +108,12 @@ def collate_fn(batch):
 
     return torch.from_numpy(padded_data), torch.tensor(labels, dtype=torch.int64), indices
 
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=256, shuffle=True, collate_fn=collate_fn)
-val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=64, shuffle=False, collate_fn=collate_fn)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=64, shuffle=False, collate_fn=collate_fn)
+train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, collate_fn=collate_fn)
+val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.val_batch_size, shuffle=False, collate_fn=collate_fn)
+test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.test_batch_size, shuffle=False, collate_fn=collate_fn)
 
 class PointNet(nn.Module):
-    def __init__(self, k=3):  # Change output classes to 3
+    def __init__(self, k=3):
         super(PointNet, self).__init__()
         self.conv1 = nn.Conv1d(3, 64, 1)
         self.bn1 = nn.BatchNorm1d(64)
@@ -128,7 +140,7 @@ class PointNet(nn.Module):
         x = self.fc3(x)
         return x
 
-model = PointNet(k=3)  # Update number of classes to 3
+model = PointNet(k=3)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
@@ -139,8 +151,7 @@ class_weights = class_weights / class_weights.sum()
 class_weights = torch.tensor(class_weights.astype(np.float32)).to(device)
 
 criterion = nn.CrossEntropyLoss(weight=class_weights)
-
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
 # Create lists to store loss and accuracy for each epoch
 train_losses = []
@@ -149,43 +160,37 @@ train_accuracies = []
 val_accuracies = []
 
 # Training the model
-num_epochs = 2
 best_val_loss = float('inf')
 
-for epoch in range(num_epochs):
+for epoch in range(args.num_epochs):
     model.train()
     running_loss = 0.0
     all_preds = []
     all_labels = []
 
-    # Training loop
-    for i, data in enumerate(tqdm(train_loader, desc=f"Epoch {epoch + 1}/{num_epochs}", ncols=100), 0):
+    for i, data in enumerate(tqdm(train_loader, desc=f"Epoch {epoch + 1}/{args.num_epochs}", ncols=100), 0):
         inputs, labels, batch_indices = data
         inputs, labels = inputs.to(device), labels.to(device)
 
-        # Reset gradients, forward pass, calculate loss, and backpropagate
         optimizer.zero_grad()
         outputs = model(inputs)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
 
-        # Accumulate the training loss
         running_loss += loss.item()
         _, predicted = torch.max(outputs, 1)
         all_preds.append(predicted.cpu().numpy())
         all_labels.append(labels.cpu().numpy())
 
-    # Calculate metrics for the training set
     all_preds = np.concatenate(all_preds)
     all_labels = np.concatenate(all_labels)
     train_accuracy = accuracy_score(all_labels, all_preds)
-    train_accuracies.append(train_accuracy)  # Save training accuracy
+    train_accuracies.append(train_accuracy)
     epoch_loss = running_loss / len(train_loader)
-    train_losses.append(epoch_loss)  # Save training loss
-    print(f'Epoch {epoch + 1}/{num_epochs}, Training Loss: {epoch_loss:.4f}, Accuracy: {train_accuracy:.4f}')
+    train_losses.append(epoch_loss)
+    print(f'Epoch {epoch + 1}/{args.num_epochs}, Training Loss: {epoch_loss:.4f}, Accuracy: {train_accuracy:.4f}')
 
-    # Validation phase
     model.eval()
     running_val_loss = 0.0
     all_val_preds = []
@@ -202,47 +207,42 @@ for epoch in range(num_epochs):
             all_val_preds.append(predicted.cpu().numpy())
             all_val_labels.append(labels.cpu().numpy())
 
-    # Calculate metrics for the validation set
     all_val_preds = np.concatenate(all_val_preds)
     all_val_labels = np.concatenate(all_val_labels)
     val_accuracy = accuracy_score(all_val_labels, all_val_preds)
-    val_accuracies.append(val_accuracy)  # Save validation accuracy
+    val_accuracies.append(val_accuracy)
     epoch_val_loss = running_val_loss / len(val_loader)
-    val_losses.append(epoch_val_loss)  # Save validation loss
-    print(f'Epoch {epoch + 1}/{num_epochs}, Validation Loss: {epoch_val_loss:.4f}, Accuracy: {val_accuracy:.4f}')
+    val_losses.append(epoch_val_loss)
+    print(f'Epoch {epoch + 1}/{args.num_epochs}, Validation Loss: {epoch_val_loss:.4f}, Accuracy: {val_accuracy:.4f}')
 
-    # Save the model if it has the best validation loss so far
     if epoch_val_loss < best_val_loss:
         best_val_loss = epoch_val_loss
-        torch.save(model.state_dict(), 'model/lidar_poinnet_model_3class_new.pth')
+        torch.save(model.state_dict(), args.output_model)
 
 print('Training Finished')
-# %%
+
 # Plot training and validation loss over epochs
 plt.figure(figsize=(7, 5))
-plt.plot(range(1, num_epochs + 1), train_losses, label="Training Loss", color="blue")
-plt.plot(range(1, num_epochs + 1), val_losses, label="Validation Loss", color="orange")
+plt.plot(range(1, args.num_epochs + 1), train_losses, label="Training Loss", color="blue")
+plt.plot(range(1, args.num_epochs + 1), val_losses, label="Validation Loss", color="orange")
 plt.xlabel("Epochs")
 plt.ylabel("Loss")
 plt.title("Training and Validation Loss over Epochs")
 plt.legend()
 plt.grid(True)
-plt.ylim(0.02, 0.3)  # Adjust y-axis range dynamically
-plt.savefig("results/training_validation_loss.png")
-plt.show()
+# plt.ylim(0.02, 0.3)
+plt.savefig(os.path.join(args.output_plots, "training_validation_loss.png"))
 plt.close()
 
 # Plot training and validation accuracy over epochs
 plt.figure(figsize=(7, 5))
-plt.plot(range(1, num_epochs + 1), train_accuracies, label="Training Accuracy", color="green")
-plt.plot(range(1, num_epochs + 1), val_accuracies, label="Validation Accuracy", color="red")
+plt.plot(range(1, args.num_epochs + 1), train_accuracies, label="Training Accuracy", color="green")
+plt.plot(range(1, args.num_epochs + 1), val_accuracies, label="Validation Accuracy", color="red")
 plt.xlabel("Epochs")
 plt.ylabel("Accuracy")
 plt.title("Training and Validation Accuracy over Epochs")
 plt.legend()
 plt.grid(True)
-plt.ylim(0.95, 0.99)  # Adjust y-axis range dynamically
-plt.savefig("results/training_validation_accuracy.png")
-plt.show()
+# plt.ylim(0.9, 0.99)
+plt.savefig(os.path.join(args.output_plots, "training_validation_accuracy.png"))
 plt.close()
-# %%
