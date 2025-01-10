@@ -97,7 +97,7 @@
         parser.add_argument('--batch_size', type=int, default=256, help="Batch size for training.")
         parser.add_argument('--val_batch_size', type=int, default=64, help="Batch size for validation.")
         parser.add_argument('--test_batch_size', type=int, default=64, help="Batch size for testing.")
-        parser.add_argument('--num_epochs', type=int, default=100, help="Number of epochs for training.")
+        parser.add_argument('--num_epochs', type=int, default=700, help="Number of epochs for training.")
         parser.add_argument('--learning_rate', type=float, default=0.0001, help="Learning rate for optimizer.")
         parser.add_argument('--oversample',default=True, help="Enable oversampling for class balancing.")
         parser.add_argument('--output_model', type=str, default='model/lidar_pointnet_model.pth', help="Output path for the trained model.")
@@ -110,7 +110,7 @@
       | `--batch_size`            | `256`                                   | 훈련 시 배치 크기입니다.                                                     |
       | `--val_batch_size`        | `64`                                    | 검증 시 배치 크기입니다.                                                     |
       | `--test_batch_size`       | `64`                                    | 테스트 시 배치 크기입니다.                                                   |
-      | `--num_epochs`            | `100`                                   | 훈련 시 총 에포크 수입니다.                                                  |
+      | `--num_epochs`            | `500~1000`                                   | 훈련 시 총 에포크 수입니다.                                                  |
       | `--learning_rate`         | `0.0001`                                | 옵티마이저의 학습률입니다.                                                   |
       | `--oversample`            | `True`                                  | 클래스 균형을 맞추기 위해 오버샘플링을 적용할지 여부를 설정합니다.                |
       | `--output_model`          | `model/lidar_pointnet_model.pth`        | 훈련된 모델이 저장될 경로입니다.                                             |
